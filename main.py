@@ -315,13 +315,12 @@ def chat(request: ChatRequest):
     action = None
 
     # 5️⃣ Decide whether to save or update
-    if has_contact_info:
-        if not lead_id:
+    if not lead_id:
+        if has_contact_info:
             lead_id = str(uuid.uuid4())
             action = "saveLead"
-        else:
-            action = "updateLead"
-
+    else:
+        action = "updateLead"
     # 6️⃣ Send to Google Sheets only if action determined
     if action:
         payload = {
