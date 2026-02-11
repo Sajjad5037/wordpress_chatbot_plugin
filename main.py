@@ -294,33 +294,37 @@ def chat(request: ChatRequest):
     ]
 
     # 3️⃣ Extract structured data
+    # 3️⃣ Extract structured data
     extracted = extract_lead_data(updated_messages)
-
-    # 4️⃣ Check if required contact info exists
-    name = (extracted.get("name") or "").strip()
-    email = (extracted.get("email") or "").strip()
-    phone = (extracted.get("phone") or "").strip()
     
-    has_contact_info = (
-        name
-        and name.lower() != "unknown"
-        and (
-            (email and email.lower() != "unknown")
-            or (phone and phone.lower() != "unknown")
-        )
-    )
-
-
+    # Ensure extracted is always a dict
+    if isinstance(extracted, list):
+        extracted = extracted[0] if extracted else {}
+    
+    if not isinstance(extracted, dict):
+        extracted = {}
+    
+    # 4️⃣ Deterministic contact detection (NOT AI dependent)
+    latest_user_message = request.messages[-1].content.strip()
+    
+    is_phone = latest_user_message.isdigit() and len(latest_user_message) >= 7
+    is_email = "@" in latest_user_message and "." in latest_user_message
+    
+    # 5️⃣ Lifecycle control
     lead_id = request.lead_id
     action = None
-
-    # 5️⃣ Decide whether to save or update
+    
     if not lead_id:
-        if has_contact_info:
+        # First save only when contact detected
+        if is_phone or is_email:
             lead_id = str(uuid.uuid4())
             action = "saveLead"
     else:
+        # After first save, always update
         action = "updateLead"
+
+
+    
     # 6️⃣ Send to Google Sheets only if action determined
     if action:
         payload = {
