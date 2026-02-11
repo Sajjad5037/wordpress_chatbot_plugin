@@ -341,6 +341,7 @@ def chat(request: ChatRequest):
                 json=payload,
                 timeout=10
             )
+            print("Sheet response:", res.status_code, res.text)
         except Exception:
             pass
 
