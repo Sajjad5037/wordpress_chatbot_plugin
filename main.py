@@ -174,8 +174,10 @@ def serve_chatbot():
 (function () {
   const API_URL = "https://web-production-42726.up.railway.app/chat";
   const sessionId = crypto.randomUUID();
-  let messages = [];
-  let leadId = null;
+  let messages = JSON.parse(localStorage.getItem("chatMessages") || "[]");
+
+  let leadId = localStorage.getItem("leadId");
+
   const bubble = document.createElement("div");
   bubble.innerHTML = `
     <div id="chat-container" style="
@@ -235,6 +237,8 @@ def serve_chatbot():
       input.value = "";
 
       messages.push({ role: "user", content: text });
+      localStorage.setItem("chatMessages", JSON.stringify(messages));
+
       messagesDiv.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
 
       const response = await fetch(API_URL, {
@@ -248,9 +252,18 @@ def serve_chatbot():
       });
 
       const data = await response.json();
+
+      // ✅ Store leadId persistently
       leadId = data.lead_id;
-      messages.push({ role: "assistant", content: data.reply });
-      messagesDiv.innerHTML += `<div><strong>AI:</strong> ${data.reply}</div>`;
+      if (leadId) {
+        localStorage.setItem("leadId", leadId);
+      }
+    
+    messages.push({ role: "assistant", content: data.reply });
+    localStorage.setItem("chatMessages", JSON.stringify(messages));
+
+    messagesDiv.innerHTML += `<div><strong>AI:</strong> ${data.reply}</div>`;
+
 
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
