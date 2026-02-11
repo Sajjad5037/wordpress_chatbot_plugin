@@ -104,6 +104,21 @@ def extract_lead_data(messages):
 
     prompt = (
         "From the following conversation, extract structured lead information.\n\n"
+    
+        "IMPORTANT RULES:\n"
+        "- Always infer intent. If the visitor is asking for a service, intent = sales.\n"
+        "- If service like web development, website redesign, marketing, etc is mentioned, populate service_interest.\n"
+        "- Convert numeric budgets into low/medium/high:\n"
+        "  low = small personal project\n"
+        "  medium = professional business budget\n"
+        "  high = enterprise or large budget\n"
+        "- Convert timeline phrases:\n"
+        "  urgent = less than 2 weeks\n"
+        "  soon = 2-6 weeks\n"
+        "  flexible = more than 6 weeks\n"
+        "- If information is missing, use 'unknown'.\n"
+        "- Always preserve previously collected valid information.\n\n"
+    
         "Return ONLY valid JSON with the following fields:\n"
         "- name\n"
         "- email\n"
@@ -117,6 +132,7 @@ def extract_lead_data(messages):
         "- lead_temperature (hot/warm/cold)\n"
         "- ai_summary (1-2 sentences)\n"
         "- suggested_action\n\n"
+    
         f"{json.dumps([m.dict() for m in messages], indent=2)}"
     )
 
