@@ -270,7 +270,14 @@ def serve_chatbot():
   });
 })();
 """
-    return Response(content=js_code, media_type="application/javascript")
+    return Response(
+        content=js_code,
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"
+        }
+    )
+
 
 @app.post("/chat")
 def chat(request: ChatRequest):
