@@ -240,7 +240,7 @@ def serve_chatbot():
       localStorage.setItem("chatMessages", JSON.stringify(messages));
 
       messagesDiv.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
-
+      console.log("Sending to backend:", messages);
       const response = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -283,6 +283,9 @@ def serve_chatbot():
 def chat(request: ChatRequest):
 
     # 1️⃣ Generate AI reply
+    print("Total messages received:", len(request.messages))
+    print("Last message:", request.messages[-1].content)
+
     ai_reply = generate_ai_reply(request.messages)
 
     # 2️⃣ Append assistant reply to conversation
