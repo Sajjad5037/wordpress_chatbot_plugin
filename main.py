@@ -340,11 +340,14 @@ def chat(request: ChatRequest):
         }
     
         try:
+            payload["action"] = action
+
             res = requests.post(
-                f"{API_URL}?action={action}",
+                API_URL,
                 json=payload,
                 timeout=10
             )
+
             print("Sheet response:", res.status_code, res.text)
         except Exception as e:
             print("Sheet error:", str(e))
