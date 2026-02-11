@@ -36,6 +36,7 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     session_id: str
     messages: list[Message]
+    lead_id: str | None = None
 
 
 # ================= JSON UTILS =================
@@ -63,11 +64,32 @@ def extract_json_from_text(text: str) -> dict:
 
 def generate_ai_reply(messages):
 
-    system_prompt = (
-        "You are a friendly AI assistant for a digital agency. "
-        "Ask concise follow-up questions to understand the visitor’s needs, "
-        "timeline, and budget. Keep responses professional and conversational."
+   system_prompt = (
+        "You are a professional AI assistant for a digital agency.\n\n"
+    
+        "Conversation Flow Rules:\n"
+        "1. First, politely ask for the visitor's full name.\n"
+        "2. Then ask for their email address or phone number.\n"
+        "3. Do NOT continue to service questions until both name and contact information are collected.\n"
+        "4. Once collected, thank them briefly and continue with qualification questions.\n\n"
+    
+        "Qualification Goals:\n"
+        "- Understand what service they are interested in.\n"
+        "- Ask about their budget range (low, medium, high).\n"
+        "- Ask about their timeline (urgent, soon, flexible).\n"
+        "- Clarify their main goal or problem.\n\n"
+    
+        "Style Guidelines:\n"
+        "- Keep responses concise and professional.\n"
+        "- Ask one question at a time.\n"
+        "- Do not overwhelm the visitor.\n"
+        "- Be polite, confident, and helpful.\n\n"
+    
+        "Important:\n"
+        "- Always guide the conversation step by step.\n"
+        "- Ensure required information is collected before moving forward."
     )
+
 
     chat = [{"role": "system", "content": system_prompt}] + [
         {"role": m.role, "content": m.content} for m in messages
@@ -89,6 +111,9 @@ def extract_lead_data(messages):
     prompt = (
         "From the following conversation, extract structured lead information.\n\n"
         "Return ONLY valid JSON with the following fields:\n"
+        "- name\n"
+        "- email\n"
+        "- phone\n"
         "- intent (sales/support/other)\n"
         "- service_interest\n"
         "- budget_range (low/medium/high/unknown)\n"
@@ -100,6 +125,7 @@ def extract_lead_data(messages):
         "- suggested_action\n\n"
         f"{json.dumps([m.dict() for m in messages], indent=2)}"
     )
+
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -128,37 +154,6 @@ def extract_lead_data(messages):
 
 # ================= AUTO SAVE =================
 
-def auto_save_lead(messages):
-
-    extracted = extract_lead_data(messages)
-
-    if (
-        extracted["intent"] == "sales"
-        and extracted["service_interest"]
-        and extracted["lead_score"] >= 60
-        and (
-            extracted["budget_range"] != "unknown"
-            or extracted["timeline"] != "unknown"
-        )
-    ):
-
-        payload = {
-            "created_at": datetime.utcnow().isoformat(),
-            "lead_id": str(uuid.uuid4()),
-            "source": "website-chatbot",
-            **extracted,
-            "conversation_log": [m.dict() for m in messages],
-        }
-
-        try:
-            requests.post(
-                f"{API_URL}?action=saveLead",
-                json=payload,
-                timeout=10
-            )
-        except Exception:
-            pass
-
 
 # ================= ROUTE =================
 from fastapi.responses import Response
@@ -170,7 +165,7 @@ def serve_chatbot():
   const API_URL = "https://web-production-42726.up.railway.app/chat";
   const sessionId = crypto.randomUUID();
   let messages = [];
-
+  let leadId = null;
   const bubble = document.createElement("div");
   bubble.innerHTML = `
     <div id="chat-container" style="
@@ -237,12 +232,13 @@ def serve_chatbot():
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session_id: sessionId,
-          messages: messages
+          messages: messages,
+          lead_id: leadId
         })
       });
 
       const data = await response.json();
-
+      leadId = data.lead_id;
       messages.push({ role: "assistant", content: data.reply });
       messagesDiv.innerHTML += `<div><strong>AI:</strong> ${data.reply}</div>`;
 
@@ -256,15 +252,58 @@ def serve_chatbot():
 @app.post("/chat")
 def chat(request: ChatRequest):
 
+    # 1️⃣ Generate AI reply
     ai_reply = generate_ai_reply(request.messages)
 
+    # 2️⃣ Append assistant reply to conversation
     updated_messages = request.messages + [
         Message(role="assistant", content=ai_reply)
     ]
 
-    auto_save_lead(updated_messages)
+    # 3️⃣ Extract structured data
+    extracted = extract_lead_data(updated_messages)
 
-    return {"reply": ai_reply}
+    # 4️⃣ Check if required contact info exists
+    has_contact_info = (
+        extracted.get("name") and
+        (extracted.get("email") or extracted.get("phone"))
+    )
+
+    lead_id = request.lead_id
+    action = None
+
+    # 5️⃣ Decide whether to save or update
+    if has_contact_info:
+        if not lead_id:
+            lead_id = str(uuid.uuid4())
+            action = "saveLead"
+        else:
+            action = "updateLead"
+
+    # 6️⃣ Send to Google Sheets only if action determined
+    if action:
+        payload = {
+            "created_at": datetime.utcnow().isoformat(),
+            "lead_id": lead_id,
+            "source": "website-chatbot",
+            **extracted,
+            "conversation_log": [m.dict() for m in updated_messages],
+        }
+
+        try:
+            requests.post(
+                f"{API_URL}?action={action}",
+                json=payload,
+                timeout=10
+            )
+        except Exception:
+            pass
+
+    # 7️⃣ Return response + lead_id (if created)
+    return {
+        "reply": ai_reply,
+        "lead_id": lead_id
+    }
 
 
 @app.get("/")
