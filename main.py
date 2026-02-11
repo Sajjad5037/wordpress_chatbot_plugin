@@ -7,6 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
+import re
+
 from fastapi.responses import Response
 
 # ================= CONFIG =================
@@ -307,7 +309,8 @@ def chat(request: ChatRequest):
     # 4️⃣ Deterministic contact detection (NOT AI dependent)
     latest_user_message = request.messages[-1].content.strip()
     
-    is_phone = latest_user_message.isdigit() and len(latest_user_message) >= 7
+    phone_match = re.sub(r"\D", "", latest_user_message)
+    is_phone = len(phone_match) >= 7
     is_email = "@" in latest_user_message and "." in latest_user_message
     
     # 5️⃣ Lifecycle control
@@ -326,6 +329,7 @@ def chat(request: ChatRequest):
 
     
     # 6️⃣ Send to Google Sheets only if action determined
+    # 6️⃣ Send to Google Sheets only if action determined
     if action:
         payload = {
             "created_at": datetime.utcnow().isoformat(),
@@ -334,16 +338,16 @@ def chat(request: ChatRequest):
             **extracted,
             "conversation_log": [m.dict() for m in updated_messages],
         }
-
+    
         try:
-            requests.post(
+            res = requests.post(
                 f"{API_URL}?action={action}",
                 json=payload,
                 timeout=10
             )
             print("Sheet response:", res.status_code, res.text)
-        except Exception:
-            pass
+        except Exception as e:
+            print("Sheet error:", str(e))
 
     # 7️⃣ Return response + lead_id (if created)
     return {
