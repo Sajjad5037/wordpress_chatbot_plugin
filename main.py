@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
+from fastapi.responses import Response
 
 # ================= CONFIG =================
 
@@ -160,6 +161,97 @@ def auto_save_lead(messages):
 
 
 # ================= ROUTE =================
+from fastapi.responses import Response
+
+@app.get("/chatbot.js")
+def serve_chatbot():
+    js_code = """
+(function () {
+  const API_URL = "https://web-production-42726.up.railway.app/chat";
+  const sessionId = crypto.randomUUID();
+  let messages = [];
+
+  const bubble = document.createElement("div");
+  bubble.innerHTML = `
+    <div id="chat-container" style="
+      position: fixed;
+      bottom: 90px;
+      right: 20px;
+      width: 320px;
+      height: 420px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: Arial;
+      z-index:999999;
+    ">
+      <div style="background:#111;color:white;padding:10px;">
+        Chat with us
+      </div>
+      <div id="chat-messages" style="flex:1;padding:10px;overflow-y:auto;font-size:14px;"></div>
+      <input id="chat-input" placeholder="Type a message..." 
+        style="border:none;border-top:1px solid #ddd;padding:10px;width:100%;outline:none;" />
+    </div>
+
+    <button id="chat-toggle" style="
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background:#111;
+      color:white;
+      border:none;
+      padding:15px;
+      border-radius:50%;
+      cursor:pointer;
+      font-size:18px;
+      z-index:999999;">
+      💬
+    </button>
+  `;
+
+  document.body.appendChild(bubble);
+
+  const container = document.getElementById("chat-container");
+  const toggle = document.getElementById("chat-toggle");
+  const input = document.getElementById("chat-input");
+  const messagesDiv = document.getElementById("chat-messages");
+
+  toggle.onclick = () => {
+    container.style.display =
+      container.style.display === "flex" ? "none" : "flex";
+  };
+
+  input.addEventListener("keypress", async (e) => {
+    if (e.key === "Enter" && input.value.trim() !== "") {
+      const text = input.value;
+      input.value = "";
+
+      messages.push({ role: "user", content: text });
+      messagesDiv.innerHTML += `<div><strong>You:</strong> ${text}</div>`;
+
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          messages: messages
+        })
+      });
+
+      const data = await response.json();
+
+      messages.push({ role: "assistant", content: data.reply });
+      messagesDiv.innerHTML += `<div><strong>AI:</strong> ${data.reply}</div>`;
+
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+  });
+})();
+"""
+    return Response(content=js_code, media_type="application/javascript")
 
 @app.post("/chat")
 def chat(request: ChatRequest):
