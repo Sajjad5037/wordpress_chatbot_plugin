@@ -274,10 +274,19 @@ def chat(request: ChatRequest):
     extracted = extract_lead_data(updated_messages)
 
     # 4️⃣ Check if required contact info exists
+    name = (extracted.get("name") or "").strip()
+    email = (extracted.get("email") or "").strip()
+    phone = (extracted.get("phone") or "").strip()
+    
     has_contact_info = (
-        extracted.get("name") and
-        (extracted.get("email") or extracted.get("phone"))
+        name
+        and name.lower() != "unknown"
+        and (
+            (email and email.lower() != "unknown")
+            or (phone and phone.lower() != "unknown")
+        )
     )
+
 
     lead_id = request.lead_id
     action = None
